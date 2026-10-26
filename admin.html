@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>한영교회 관리자 대시보드 - 회원 승인 & 교적 관리</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- 헤더 -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-section">
+        <div class="brand-emblem">⚙️</div>
+        <div class="brand-text">
+          <h1>한영교회 관리자 대시보드</h1>
+          <span class="sub-title">교역자실 &middot; 행정 관리 &middot; 권한 승인 &middot; 엑셀 리포트</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <a href="index.html" class="btn btn-primary">
+          <span>📖</span> 주일 출석부 바로가기
+        </a>
+        <div id="auth-action-area"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 대시보드 영역 -->
+  <main class="main-wrapper" id="admin-content-area">
+
+    <!-- 탭 네비게이션 -->
+    <nav class="admin-tabs-nav">
+      <button class="admin-tab-btn active" id="tab-btn-approvals" onclick="switchAdminTab('approvals')">
+        👥 사용자 권한 승인 관리 <span id="pending-count-badge" class="role-tag pending" style="display:none; margin-left:6px;">0</span>
+      </button>
+      <button class="admin-tab-btn" id="tab-btn-stats" onclick="switchAdminTab('stats')">
+        📊 주일 출석 통계 & 엑셀 내보내기
+      </button>
+      <button class="admin-tab-btn" id="tab-btn-members" onclick="switchAdminTab('members')">
+        🗂️ 성도 교적 관리 (CRUD)
+      </button>
+    </nav>
+
+    <!-- 탭 1: 사용자 권한 승인 관리 -->
+    <div class="admin-tab-content" id="tab-content-approvals">
+      <!-- 1) 승인 대기 목록 -->
+      <section class="admin-section-card">
+        <div class="section-header">
+          <h3>신규 가입자 승인 대기 목록 (Pending)</h3>
+          <span style="font-size:0.85rem; color:var(--text-muted);">구글 로그인 완료 후 교회의 승인을 기다리는 봉사자 명단입니다.</span>
+        </div>
+        <div class="pending-users-grid" id="pending-users-container">
+          <!-- admin.js에 의해 동적 렌더링 -->
+        </div>
+      </section>
+
+      <!-- 2) 전체 등록 봉사자 권한 관리 -->
+      <section class="admin-section-card">
+        <div class="section-header">
+          <h3>전체 사용자 권한 관리</h3>
+          <span style="font-size:0.85rem; color:var(--text-muted);">안내위원(Usher) 또는 관리자(Admin) 역할을 즉시 변경할 수 있습니다.</span>
+        </div>
+        <div class="member-list-view">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th>사용자</th>
+                <th>이메일</th>
+                <th>현재 권한</th>
+                <th>권한 변경</th>
+              </tr>
+            </thead>
+            <tbody id="all-users-table-body">
+              <!-- admin.js에 의해 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- 탭 2: 출석 통계 & 엑셀 내보내기 -->
+    <div class="admin-tab-content" id="tab-content-stats" style="display:none;">
+      <section class="admin-section-card">
+        <div class="section-header">
+          <h3>주일 예배 출석 리포트 및 엑셀 추출</h3>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="date" id="admin-date-picker" class="styled-select" />
+            <select id="admin-type-select" class="styled-select">
+              <option value="주일1부">주일 1부 (09:00)</option>
+              <option value="주일2부">주일 2부 (11:00)</option>
+              <option value="주일오후">주일 오후 (14:00)</option>
+              <option value="수요예배">수요 기도회</option>
+              <option value="금요철야">금요 성령집회</option>
+            </select>
+            <button class="btn btn-primary" onclick="exportAttendanceToExcel(getAdminServiceDate(), getAdminServiceType())">
+              <span>📥</span> 이번 주 출석자 엑셀(CSV) 다운로드
+            </button>
+          </div>
+        </div>
+
+        <!-- 핵심 요약 메트릭 박스 -->
+        <div class="export-stats-grid">
+          <div class="metric-box">
+            <div class="label">총 재적 성도</div>
+            <div class="value" id="metric-total">250명</div>
+          </div>
+          <div class="metric-box highlight">
+            <div class="label">당일 출석 인원</div>
+            <div class="value" id="metric-attended">0명</div>
+          </div>
+          <div class="metric-box">
+            <div class="label">미출석 인원</div>
+            <div class="value" id="metric-unattended">250명</div>
+          </div>
+          <div class="metric-box">
+            <div class="label">당일 출석률</div>
+            <div class="value" id="metric-rate">0.0%</div>
+          </div>
+        </div>
+
+        <!-- 교구별 출석 세부 집계 -->
+        <div style="margin-top:20px;">
+          <h4 style="font-family:var(--font-serif); font-size:1.1rem; margin-bottom:10px; color:var(--primary-navy);">교구 및 구역별 출석 현황</h4>
+          <div class="member-list-view" style="max-width:600px;">
+            <table class="member-table">
+              <thead>
+                <tr>
+                  <th>교구 / 구역명</th>
+                  <th style="text-align:right;">출석 인원</th>
+                </tr>
+              </thead>
+              <tbody id="parish-stats-tbody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 탭 3: 성도 교적 관리 (CRUD) -->
+    <div class="admin-tab-content" id="tab-content-members" style="display:none;">
+      <section class="admin-section-card">
+        <div class="section-header">
+          <h3>한영교회 성도 교적부 (총 250명)</h3>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="text" id="admin-member-search" class="styled-select" placeholder="이름 또는 교구 검색" style="width:200px;" />
+            <button class="btn btn-primary" onclick="openAddMemberModal()">
+              <span>➕</span> 새 성도 등록
+            </button>
+          </div>
+        </div>
+
+        <div class="member-list-view">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">No</th>
+                <th>성명 (초성)</th>
+                <th>직분</th>
+                <th>교구 / 구역</th>
+                <th>연락처 (뒤4자리)</th>
+                <th style="width:120px; text-align:right;">관리</th>
+              </tr>
+            </thead>
+            <tbody id="admin-members-tbody">
+              <!-- admin.js에 의해 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- 성도 등록/수정 모달 -->
+  <div id="member-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4 id="member-modal-title">성도 정보 등록</h4>
+        <button onclick="closeMemberModal()" style="border:none; background:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+      <form onsubmit="handleSaveMember(event)">
+        <input type="hidden" id="member-form-id" />
+
+        <div class="form-group">
+          <label class="form-label" for="member-form-name">성도 성함 *</label>
+          <input type="text" id="member-form-name" class="form-control" required placeholder="예: 김은혜" />
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="member-form-position">직분</label>
+            <select id="member-form-position" class="form-control">
+              <option value="성도">성도</option>
+              <option value="집사">집사</option>
+              <option value="안수집사">안수집사</option>
+              <option value="권사">권사</option>
+              <option value="장로">장로</option>
+              <option value="교육전도사">교육전도사</option>
+              <option value="전도사">전도사</option>
+              <option value="부목사">부목사</option>
+              <option value="담임목사">담임목사</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="member-form-parish">교구 / 구역</label>
+            <input type="text" id="member-form-parish" class="form-control" placeholder="예: 1교구 2구역, 청년부 1팀" />
+          </div>
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="member-form-phone">전화번호 뒤 4자리</label>
+            <input type="text" id="member-form-phone" class="form-control" maxlength="4" placeholder="예: 7788" />
+          </div>
+          <div>
+            <label class="form-label" for="member-form-photo">프로필 사진 URL</label>
+            <input type="url" id="member-form-photo" class="form-control" placeholder="https://..." />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="member-form-notes">비고 (교적 메모)</label>
+          <input type="text" id="member-form-notes" class="form-control" placeholder="예: 성가대, 교사, 차량봉사 등" />
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn btn-outline" onclick="closeMemberModal()">취소</button>
+          <button type="submit" class="btn btn-primary">저장 완료</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- 스크립트 -->
+  <script src="js/supabaseClient.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/exportExcel.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

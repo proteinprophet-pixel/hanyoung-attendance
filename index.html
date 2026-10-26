@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>한영교회 스마트 안내 & 출석 관리 시스템</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- 상단 헤더 -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="brand-section">
+        <div class="brand-emblem">✝</div>
+        <div class="brand-text">
+          <h1>한영교회 스마트 출석부</h1>
+          <span class="sub-title">안내위원회 &middot; 스마트 안내 &middot; 주일 출석 관리</span>
+        </div>
+      </a>
+
+      <!-- 예배 일자 및 예배 구분 -->
+      <div class="header-center-info">
+        <div class="service-badge">
+          <span>📅</span>
+          <span id="header-today-date">2026-10-26 (주일)</span>
+        </div>
+        <select id="service-type-select" class="service-select" title="예배 구분 선택">
+          <option value="주일1부" selected>주일 1부 예배 (09:00)</option>
+          <option value="주일2부">주일 2부 예배 (11:00)</option>
+          <option value="주일오후">주일 오후 찬양예배 (14:00)</option>
+          <option value="수요예배">수요 기도회</option>
+          <option value="금요철야">금요 성령집회</option>
+        </select>
+      </div>
+
+      <!-- 우측 컨트롤 및 인증 영역 -->
+      <div class="header-controls">
+        <button class="btn btn-kiosk" onclick="openKioskMode()">
+          <span>📱</span> 입구 셀프 키오스크
+        </button>
+        <a href="admin.html" id="admin-nav-link" class="btn btn-outline" style="display:none;">
+          <span>⚙️</span> 관리자 대시보드
+        </a>
+        <div id="auth-action-area">
+          <!-- auth.js에 의해 동적 렌더링 -->
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 승인 대기 안내 배너 (Pending 사용자 노출) -->
+  <div id="pending-approval-banner" style="display:none; background:var(--amber-light); border-bottom:1px solid var(--amber-pending); padding:10px 20px; text-align:center; color:var(--text-main); font-size:0.9rem;">
+    <strong>⏳ 안내위원 승인 대기 중입니다.</strong> 교역자실(관리자)의 승인 후 정식 출석 체크 권한이 활성화됩니다.
+  </div>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="main-wrapper">
+
+    <!-- 1. 주일 당일 출석 현황 요약 바 -->
+    <section class="stats-summary-card">
+      <div class="stats-headline">
+        <span class="label">오늘 주일예배 출석 현황</span>
+        <div class="metric">
+          <span class="current" id="stats-attended-count">0</span>
+          <span class="total" id="stats-total-count">/ 250명</span>
+          <span class="rate" id="stats-rate">0.0%</span>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div class="progress-track" title="출석 진행률">
+          <div class="progress-fill" id="stats-progress-fill" style="width:0%;"></div>
+        </div>
+        <div class="stats-quick-actions">
+          <button class="btn btn-outline btn-sm" onclick="exportAttendanceToExcel(getSelectedServiceDate(), getSelectedServiceType())" title="현재 출석자 명단 엑셀 다운로드">
+            <span>📊</span> 출석 명단 엑셀(CSV)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 검색 및 컨트롤 제어 바 -->
+    <section class="controls-card">
+      <div class="controls-top-row">
+        <!-- 초성 / 이름 통합 검색창 -->
+        <div class="search-box-wrapper">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            id="search-input" 
+            class="search-input" 
+            placeholder="성도 이름 1글자 또는 초성 검색 (예: 김은혜, ㄱㅇㅎ, 7788)" 
+            autocomplete="off"
+          />
+          <button id="search-clear-btn" class="search-clear-btn" title="검색어 지우기">&times;</button>
+        </div>
+
+        <!-- 교구 및 출석 상태 필터 -->
+        <div class="filter-group">
+          <select id="parish-filter" class="styled-select" title="교구 선택">
+            <option value="ALL">전체 교구 (250명)</option>
+          </select>
+
+          <select id="status-filter" class="styled-select" title="출석 상태 필터">
+            <option value="ALL">출석 전체</option>
+            <option value="ATTENDED">✓ 출석 완료만</option>
+            <option value="UNATTENDED">○ 미출석만</option>
+          </select>
+
+          <!-- 뷰 모드 전환 (카드 뷰 vs 리스트 뷰) -->
+          <div class="view-toggle-group">
+            <button id="view-card-btn" class="view-btn active" title="카드 뷰 (사진 포함)">
+              <span>🗂️</span> 카드
+            </button>
+            <button id="view-list-btn" class="view-btn" title="리스트 뷰 (빠른 터치)">
+              <span>📋</span> 목록
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 한글 초성 원클릭 네비게이터 -->
+      <nav class="chosung-navigator" id="chosung-navigator" aria-label="한글 초성 검색">
+        <!-- attendance.js에 의해 동적 렌더링 -->
+      </nav>
+    </section>
+
+    <!-- 4. 성도 명단 그리드 컨테이너 -->
+    <section class="members-container" id="members-container">
+      <!-- attendance.js에 의해 카드 뷰 또는 리스트 뷰로 렌더링 -->
+    </section>
+
+  </main>
+
+  <!-- 푸터 -->
+  <footer style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.8rem; border-top:1px solid var(--border-ink); margin-top:auto;">
+    한영교회 스마트 안내 & 출석 관리 시스템 &middot; Liturgical Warm Paper Crafting UI &middot; Pure Web (ES6+)
+  </footer>
+
+  <!-- =======================================================================
+       셀프 체크인 키오스크 오버레이 (성도 자율용 Fullscreen Kiosk)
+       ======================================================================= -->
+  <div id="kiosk-overlay" class="kiosk-overlay">
+    <div class="kiosk-header">
+      <div class="kiosk-title-block">
+        <h2>한영교회 성도 셀프 체크인</h2>
+        <p>주일 예배에 오신 것을 주님의 이름으로 환영합니다. 본인의 성함을 찾아 터치해 주세요.</p>
+      </div>
+      <button class="btn btn-outline btn-lg" onclick="closeKioskMode()">
+        <span>✕</span> 안내석 모드로 복귀
+      </button>
+    </div>
+
+    <!-- 큰 키오스크 검색 입력창 -->
+    <div class="kiosk-search-large">
+      <input 
+        type="text" 
+        id="kiosk-search-input" 
+        class="kiosk-input" 
+        placeholder="성함 1~2글자 또는 자음(초성)을 입력해 주세요" 
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- 키오스크 성도 터치 카드 그리드 -->
+    <div class="kiosk-grid" id="kiosk-members-grid">
+      <!-- renderKioskList에 의해 동적 렌더링 -->
+    </div>
+  </div>
+
+  <!-- 키오스크 축복 팝업 (Blessing Modal) -->
+  <div id="blessing-modal" class="blessing-modal">
+    <div class="blessing-box">
+      <div class="blessing-icon">🙏</div>
+      <h3 class="blessing-title" id="blessing-member-name">김은혜 권사님</h3>
+      <p class="blessing-desc">
+        오늘 주일 예배에 오신 것을 진심으로 환영하고 축복합니다.<br />
+        풍성한 은혜와 평강이 가득하시길 기도합니다.
+      </p>
+      <div style="font-size:0.88rem; color:var(--sage-green); font-weight:700;">
+        ✓ 출석 체크가 정상적으로 완료되었습니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 전역 토스트 컨테이너 -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- 스크립트 모듈 로드 -->
+  <script src="js/supabaseClient.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/exportExcel.js"></script>
+  <script src="js/attendance.js"></script>
+
+  <script>
+    // 오늘 날짜 한글 표기
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} (${days[now.getDay()]}요일)`;
+    const dateEl = document.getElementById('header-today-date');
+    if (dateEl) dateEl.textContent = dateStr;
+  </script>
+</body>
+</html>
