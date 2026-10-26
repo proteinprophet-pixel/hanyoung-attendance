@@ -50,40 +50,46 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendances ENABLE ROW LEVEL SECURITY;
 
--- Profiles RLS
-DROP POLICY IF EXISTS "profiles_select_all" ON public.profiles;
-CREATE POLICY "profiles_select_all" ON public.profiles FOR SELECT USING (true);
+-- 관리자 여부 판별 함수 (무한 재귀 방지 SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
 
-DROP POLICY IF EXISTS "profiles_update_admin_or_self" ON public.profiles;
-CREATE POLICY "profiles_update_admin_or_self" ON public.profiles FOR UPDATE USING (
-  auth.uid() = id OR 
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+-- Profiles RLS 정책
+DROP POLICY IF EXISTS "profiles_select_policy" ON public.profiles;
+CREATE POLICY "profiles_select_policy" ON public.profiles FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT WITH CHECK (
-  auth.uid() = id OR 
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+DROP POLICY IF EXISTS "profiles_insert_policy" ON public.profiles;
+CREATE POLICY "profiles_insert_policy" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id OR public.is_admin());
 
--- Members RLS
-DROP POLICY IF EXISTS "members_select_active" ON public.members;
-CREATE POLICY "members_select_active" ON public.members FOR SELECT USING (true);
+DROP POLICY IF EXISTS "profiles_update_policy" ON public.profiles;
+CREATE POLICY "profiles_update_policy" ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.is_admin());
 
-DROP POLICY IF EXISTS "members_admin_all" ON public.members;
-CREATE POLICY "members_admin_all" ON public.members FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+-- Members RLS 정책
+DROP POLICY IF EXISTS "members_select_policy" ON public.members;
+CREATE POLICY "members_select_policy" ON public.members FOR SELECT USING (true);
 
--- Attendances RLS
-DROP POLICY IF EXISTS "attendances_select_auth" ON public.attendances;
-CREATE POLICY "attendances_select_auth" ON public.attendances FOR SELECT USING (true);
+DROP POLICY IF EXISTS "members_admin_policy" ON public.members;
+CREATE POLICY "members_admin_policy" ON public.members FOR ALL USING (public.is_admin());
 
-DROP POLICY IF EXISTS "attendances_insert_auth" ON public.attendances;
-CREATE POLICY "attendances_insert_auth" ON public.attendances FOR INSERT WITH CHECK (true);
+-- Attendances RLS 정책
+DROP POLICY IF EXISTS "attendances_select_policy" ON public.attendances;
+CREATE POLICY "attendances_select_policy" ON public.attendances FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "attendances_delete_auth" ON public.attendances;
-CREATE POLICY "attendances_delete_auth" ON public.attendances FOR DELETE USING (true);
+DROP POLICY IF EXISTS "attendances_insert_policy" ON public.attendances;
+CREATE POLICY "attendances_insert_policy" ON public.attendances FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "attendances_delete_policy" ON public.attendances;
+CREATE POLICY "attendances_delete_policy" ON public.attendances FOR DELETE USING (true);
 
 -- 신규 가입 시 기본 pending 프로필 생성 트리거
 CREATE OR REPLACE FUNCTION public.handle_new_user()
