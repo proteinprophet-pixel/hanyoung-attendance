@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>한영교회 스마트 안내 & 출석 관리 시스템</title>
+  <title>한영교회 스마트 안내 & 출석 관리 시스템 (v2.0)</title>
   <link rel="stylesheet" href="css/style.css" />
   <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -16,7 +16,7 @@
       <a href="index.html" class="brand-section">
         <div class="brand-emblem">✝</div>
         <div class="brand-text">
-          <h1>한영교회 스마트 출석부</h1>
+          <h1>한영교회 스마트 출석부 (v2.0)</h1>
           <span class="sub-title">안내위원회 &middot; 스마트 안내 &middot; 주일 출석 관리</span>
         </div>
       </a>
@@ -25,7 +25,7 @@
       <div class="header-center-info">
         <div class="service-badge">
           <span>📅</span>
-          <span id="header-today-date">2026-10-26 (주일)</span>
+          <span id="header-today-date">2026-10-27 (주일)</span>
         </div>
         <select id="service-type-select" class="service-select" title="예배 구분 선택">
           <option value="주일1부" selected>주일 1부 예배 (09:00)</option>
@@ -38,15 +38,16 @@
 
       <!-- 우측 컨트롤 및 인증 영역 -->
       <div class="header-controls">
+        <button class="btn btn-outline btn-sm" onclick="openNewcomerModal()" style="color:var(--sage-green); border-color:var(--sage-green);">
+          <span>🌱</span> 새가족 등록
+        </button>
         <button class="btn btn-kiosk" onclick="openKioskMode()">
           <span>📱</span> 입구 셀프 키오스크
         </button>
         <a href="admin.html" id="admin-nav-link" class="btn btn-outline" style="display:none;">
           <span>⚙️</span> 관리자 대시보드
         </a>
-        <div id="auth-action-area">
-          <!-- auth.js에 의해 동적 렌더링 -->
-        </div>
+        <div id="auth-action-area"></div>
       </div>
     </div>
   </header>
@@ -137,21 +138,26 @@
 
   <!-- 푸터 -->
   <footer style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.8rem; border-top:1px solid var(--border-ink); margin-top:auto;">
-    한영교회 스마트 안내 & 출석 관리 시스템 &middot; Liturgical Warm Paper Crafting UI &middot; Pure Web (ES6+)
+    한영교회 스마트 안내 & 출석 관리 시스템 (v2.0) &middot; Liturgical Warm Paper Crafting UI &middot; Pure Web (ES6+)
   </footer>
 
   <!-- =======================================================================
-       셀프 체크인 키오스크 오버레이 (성도 자율용 Fullscreen Kiosk)
+       v2.0 대형 터치 셀프 체크인 키오스크 오버레이 (성도 자율용 Fullscreen Kiosk)
        ======================================================================= -->
   <div id="kiosk-overlay" class="kiosk-overlay">
     <div class="kiosk-header">
       <div class="kiosk-title-block">
         <h2>한영교회 성도 셀프 체크인</h2>
-        <p>주일 예배에 오신 것을 주님의 이름으로 환영합니다. 본인의 성함을 찾아 터치해 주세요.</p>
+        <p>주일 예배에 오신 것을 주님의 이름으로 환영합니다. 아래 자음을 터치하거나 성함을 검색해 주세요.</p>
       </div>
       <button class="btn btn-outline btn-lg" onclick="closeKioskMode()">
         <span>✕</span> 안내석 모드로 복귀
       </button>
+    </div>
+
+    <!-- v2.0 대형 한글 자음 가상 키패드 -->
+    <div class="kiosk-keypad-container" id="kiosk-keypad-container">
+      <!-- attendance.js에 의해 렌더링 -->
     </div>
 
     <!-- 큰 키오스크 검색 입력창 -->
@@ -160,14 +166,14 @@
         type="text" 
         id="kiosk-search-input" 
         class="kiosk-input" 
-        placeholder="성함 1~2글자 또는 자음(초성)을 입력해 주세요" 
+        placeholder="성함 또는 위 자음 키패드를 터치해 주세요" 
         autocomplete="off"
       />
     </div>
 
-    <!-- 키오스크 성도 터치 카드 그리드 -->
+    <!-- 키오스크 대형 터치 카드 그리드 -->
     <div class="kiosk-grid" id="kiosk-members-grid">
-      <!-- renderKioskList에 의해 동적 렌더링 -->
+      <!-- attendance.js에 의해 동적 렌더링 -->
     </div>
   </div>
 
@@ -180,9 +186,59 @@
         오늘 주일 예배에 오신 것을 진심으로 환영하고 축복합니다.<br />
         풍성한 은혜와 평강이 가득하시길 기도합니다.
       </p>
-      <div style="font-size:0.88rem; color:var(--sage-green); font-weight:700;">
+      <div style="font-size:0.95rem; color:var(--sage-green); font-weight:800;">
         ✓ 출석 체크가 정상적으로 완료되었습니다.
       </div>
+    </div>
+  </div>
+
+  <!-- 새가족 / 방문자 빠른 등록 모달 (v2.0) -->
+  <div id="newcomer-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4>🌱 새가족 / 방문자 등록</h4>
+        <button onclick="closeNewcomerModal()" style="border:none; background:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+      <form onsubmit="handleSaveNewcomer(event)">
+        <div class="form-group">
+          <label class="form-label" for="newcomer-form-name">새가족 성함 *</label>
+          <input type="text" id="newcomer-form-name" class="form-control" required placeholder="예: 박은혜" />
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="newcomer-form-phone">연락처</label>
+            <input type="tel" id="newcomer-form-phone" class="form-control" placeholder="010-0000-0000" />
+          </div>
+          <div>
+            <label class="form-label" for="newcomer-form-guide">인도자 (소개자)</label>
+            <input type="text" id="newcomer-form-guide" class="form-control" placeholder="예: 이바울 권사" />
+          </div>
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="newcomer-form-parish">배정 희망 교구</label>
+            <input type="text" id="newcomer-form-parish" class="form-control" value="새가족부" />
+          </div>
+          <div>
+            <label class="form-label" for="newcomer-form-reason">방문 계기</label>
+            <input type="text" id="newcomer-form-reason" class="form-control" placeholder="예: 지인 전도, 이사 등" />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; cursor:pointer;">
+            <input type="checkbox" id="newcomer-form-autocheck" checked />
+            <span style="font-weight:600; color:var(--sage-green);">등록과 동시에 오늘 주일예배 출석 체크</span>
+          </label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn btn-outline" onclick="closeNewcomerModal()">취소</button>
+          <button type="submit" class="btn btn-primary" style="background:var(--sage-green); border-color:var(--sage-green-dark);">등록 완료</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -193,10 +249,10 @@
   <script src="js/supabaseClient.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/exportExcel.js"></script>
+  <script src="js/newcomers.js"></script>
   <script src="js/attendance.js"></script>
 
   <script>
-    // 오늘 날짜 한글 표기
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} (${days[now.getDay()]}요일)`;

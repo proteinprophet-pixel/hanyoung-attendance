@@ -1,6 +1,6 @@
 /**
- * 한영교회 스마트 안내 & 출석 관리 시스템
- * Admin Dashboard: User Approvals, Member CRUD & Statistics
+ * 한영교회 스마트 안내 & 출석 관리 시스템 v2.0
+ * Admin Dashboard: User Approvals, Member CRUD, Multi-Service Charts, Newcomers & Excel Batch
  */
 
 let pendingUsers = [];
@@ -9,7 +9,7 @@ let adminServiceDate = new Date().toISOString().split('T')[0];
 let adminServiceType = '주일1부';
 
 async function initAdminDashboard() {
-  const profile = getCurrentProfile();
+  const profile = typeof getCurrentProfile === 'function' ? getCurrentProfile() : null;
   
   // 관리자 권한 확인 (데모 모드 포함)
   if (!profile || profile.role !== 'admin') {
@@ -34,6 +34,7 @@ async function initAdminDashboard() {
   await loadUserApprovals();
   await loadAttendanceStats();
   await loadAdminMembers();
+  if (typeof loadNewcomersList === 'function') await loadNewcomersList();
 }
 
 /**
@@ -156,7 +157,7 @@ async function updateUserRole(userId, newRole, newStatus) {
 }
 
 /**
- * 2. 출석 통계 대시보드 로드
+ * 2. 출석 통계 대시보드 & 예배별 비교 그래프 로드
  */
 async function loadAttendanceStats() {
   const supabase = getSupabase();
@@ -171,17 +172,17 @@ async function loadAttendanceStats() {
 
     if (mErr) throw mErr;
 
-    // 2. 선택된 예배의 출석 인원
-    const { data: attendances, error: aErr } = await supabase
+    // 2. 당일 전체 출석 데이터 (예배별 집계용)
+    const { data: allDayAttendances, error: aErr } = await supabase
       .from('attendances')
-      .select('*, members(parish)')
-      .eq('service_date', adminServiceDate)
-      .eq('service_type', adminServiceType);
+      .select('*, members(parish, is_newcomer)')
+      .eq('service_date', adminServiceDate);
 
     if (aErr) throw aErr;
 
+    const attendances = (allDayAttendances || []).filter(a => a.service_type === adminServiceType);
     const total = totalMembers || 0;
-    const attended = attendances?.length || 0;
+    const attended = attendances.length;
     const unattended = Math.max(0, total - attended);
     const rate = total > 0 ? ((attended / total) * 100).toFixed(1) : 0;
 
@@ -191,9 +192,12 @@ async function loadAttendanceStats() {
     document.getElementById('metric-unattended').textContent = `${unattended}명`;
     document.getElementById('metric-rate').textContent = `${rate}%`;
 
-    // 교구별 출석 통계 집계
+    // 3. 예배별 통계 비교 그래프 렌더링 (v2.0)
+    renderServiceComparisonChart(allDayAttendances || [], total);
+
+    // 4. 교구별 출석 통계 집계
     const parishMap = new Map();
-    (attendances || []).forEach(a => {
+    attendances.forEach(a => {
       const p = a.members?.parish || '미지정';
       parishMap.set(p, (parishMap.get(p) || 0) + 1);
     });
@@ -215,6 +219,48 @@ async function loadAttendanceStats() {
   } catch (err) {
     console.error('Failed to load stats:', err);
   }
+}
+
+/**
+ * v2.0 예배별 출석 비교 통계 막대 그래프
+ */
+function renderServiceComparisonChart(attendances, totalMembers) {
+  const container = document.getElementById('service-chart-container');
+  if (!container) return;
+
+  const services = [
+    { name: '주일 1부 (09:00)', key: '주일1부', color: 'var(--primary-navy)' },
+    { name: '주일 2부 (11:00)', key: '주일2부', color: 'var(--sage-green)' },
+    { name: '주일 오후 찬양', key: '주일오후', color: 'var(--gold-dark)' },
+    { name: '수요 기도회', key: '수요예배', color: '#6A5ACD' },
+    { name: '금요 성령집회', key: '금요철야', color: '#B22222' }
+  ];
+
+  // 각 예배별 출석 수 계산
+  const serviceCounts = {};
+  services.forEach(s => {
+    serviceCounts[s.key] = attendances.filter(a => a.service_type === s.key).length;
+  });
+
+  const maxCount = Math.max(...Object.values(serviceCounts), 1);
+
+  container.innerHTML = services.map(s => {
+    const count = serviceCounts[s.key] || 0;
+    const barPercent = Math.min(100, Math.round((count / Math.max(maxCount, totalMembers * 0.7)) * 100));
+    const rateOfTotal = totalMembers > 0 ? ((count / totalMembers) * 100).toFixed(1) : 0;
+
+    return `
+      <div class="service-bar-row">
+        <div class="service-bar-label">
+          <strong>${s.name}</strong>
+          <span>${count}명 (${rateOfTotal}%)</span>
+        </div>
+        <div class="service-bar-track">
+          <div class="service-bar-fill" style="width:${barPercent}%; background:${s.color};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 /**
@@ -258,6 +304,7 @@ function renderAdminMembersTable(members) {
       <td>
         <strong style="font-family:var(--font-serif); font-size:1.05rem;">${m.name}</strong>
         <span style="font-size:0.75rem; color:var(--text-muted); margin-left:4px;">(${m.chosung || '-'})</span>
+        ${m.is_newcomer ? '<span class="role-tag usher" style="margin-left:4px; font-size:0.65rem;">새가족</span>' : ''}
       </td>
       <td><span class="member-position-badge">${m.position || m.title || '성도'}</span></td>
       <td>${m.parish}</td>
@@ -319,17 +366,17 @@ async function handleSaveMember(e) {
     return;
   }
 
-  // 한글 초성 자동 생성
-  const chosung = extractChosung(name);
+  const chosung = typeof extractChosung === 'function' ? extractChosung(name) : '';
+  const initial = typeof getInitialConsonant === 'function' ? getInitialConsonant(name) : '';
 
   try {
     if (id) {
-      // 수정
       const { error } = await supabase
         .from('members')
         .update({
           name,
           chosung,
+          initial_consonant: initial,
           position,
           title: position,
           parish,
@@ -343,12 +390,12 @@ async function handleSaveMember(e) {
       if (error) throw error;
       showToast(`${name} 성도 정보가 수정되었습니다.`, 'success');
     } else {
-      // 신규 등록
       const { error } = await supabase
         .from('members')
         .insert([{
           name,
           chosung,
+          initial_consonant: initial,
           position,
           title: position,
           parish,
@@ -402,6 +449,10 @@ function switchAdminTab(tabName) {
 
   if (activeBtn) activeBtn.classList.add('active');
   if (activeContent) activeContent.style.display = 'block';
+
+  if (tabName === 'newcomers' && typeof loadNewcomersList === 'function') {
+    loadNewcomersList();
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -450,5 +501,7 @@ window.openEditMemberModal = openEditMemberModal;
 window.closeMemberModal = closeMemberModal;
 window.handleSaveMember = handleSaveMember;
 window.deleteMember = deleteMember;
+window.loadAttendanceStats = loadAttendanceStats;
+window.loadAdminMembers = loadAdminMembers;
 window.getAdminServiceDate = () => adminServiceDate;
 window.getAdminServiceType = () => adminServiceType;

@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>한영교회 관리자 대시보드 - 회원 승인 & 교적 관리</title>
+  <title>한영교회 관리자 대시보드 (v2.0) - 회원 승인 & 교적 관리</title>
   <link rel="stylesheet" href="css/style.css" />
+  <!-- Supabase CDN & SheetJS XLSX CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -15,12 +17,15 @@
       <div class="brand-section">
         <div class="brand-emblem">⚙️</div>
         <div class="brand-text">
-          <h1>한영교회 관리자 대시보드</h1>
-          <span class="sub-title">교역자실 &middot; 행정 관리 &middot; 권한 승인 &middot; 엑셀 리포트</span>
+          <h1>한영교회 관리자 대시보드 (v2.0)</h1>
+          <span class="sub-title">교역자실 &middot; 행정 관리 &middot; 엑셀 일괄 관리 &middot; A4 보고서</span>
         </div>
       </div>
 
       <div class="header-controls">
+        <button class="btn btn-outline btn-sm" onclick="openNewcomerModal()" style="color:var(--sage-green); border-color:var(--sage-green);">
+          <span>🌱</span> 새가족 등록
+        </button>
         <a href="index.html" class="btn btn-primary">
           <span>📖</span> 주일 출석부 바로가기
         </a>
@@ -38,10 +43,13 @@
         👥 사용자 권한 승인 관리 <span id="pending-count-badge" class="role-tag pending" style="display:none; margin-left:6px;">0</span>
       </button>
       <button class="admin-tab-btn" id="tab-btn-stats" onclick="switchAdminTab('stats')">
-        📊 주일 출석 통계 & 엑셀 내보내기
+        📊 주일 출석 통계 & 예배별 비교 그래프
       </button>
       <button class="admin-tab-btn" id="tab-btn-members" onclick="switchAdminTab('members')">
-        🗂️ 성도 교적 관리 (CRUD)
+        🗂️ 성도 교적 관리 (CRUD & 엑셀 일괄 업로드)
+      </button>
+      <button class="admin-tab-btn" id="tab-btn-newcomers" onclick="switchAdminTab('newcomers')">
+        🌱 새가족 / 방문자 관리
       </button>
     </nav>
 
@@ -53,9 +61,7 @@
           <h3>신규 가입자 승인 대기 목록 (Pending)</h3>
           <span style="font-size:0.85rem; color:var(--text-muted);">구글 로그인 완료 후 교회의 승인을 기다리는 봉사자 명단입니다.</span>
         </div>
-        <div class="pending-users-grid" id="pending-users-container">
-          <!-- admin.js에 의해 동적 렌더링 -->
-        </div>
+        <div class="pending-users-grid" id="pending-users-container"></div>
       </section>
 
       <!-- 2) 전체 등록 봉사자 권한 관리 -->
@@ -74,20 +80,18 @@
                 <th>권한 변경</th>
               </tr>
             </thead>
-            <tbody id="all-users-table-body">
-              <!-- admin.js에 의해 동적 렌더링 -->
-            </tbody>
+            <tbody id="all-users-table-body"></tbody>
           </table>
         </div>
       </section>
     </div>
 
-    <!-- 탭 2: 출석 통계 & 엑셀 내보내기 -->
+    <!-- 탭 2: 출석 통계 & 예배별 그래프 & A4 보고서 -->
     <div class="admin-tab-content" id="tab-content-stats" style="display:none;">
       <section class="admin-section-card">
         <div class="section-header">
-          <h3>주일 예배 출석 리포트 및 엑셀 추출</h3>
-          <div style="display:flex; align-items:center; gap:10px;">
+          <h3>주일 예배 출석 리포트 및 분석</h3>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <input type="date" id="admin-date-picker" class="styled-select" />
             <select id="admin-type-select" class="styled-select">
               <option value="주일1부">주일 1부 (09:00)</option>
@@ -96,8 +100,11 @@
               <option value="수요예배">수요 기도회</option>
               <option value="금요철야">금요 성령집회</option>
             </select>
+            <button class="btn btn-outline" onclick="openPrintReportModal(getAdminServiceDate(), getAdminServiceType())">
+              <span>🖨️</span> 주일 출석 보고서 인쇄 (A4/PDF)
+            </button>
             <button class="btn btn-primary" onclick="exportAttendanceToExcel(getAdminServiceDate(), getAdminServiceType())">
-              <span>📥</span> 이번 주 출석자 엑셀(CSV) 다운로드
+              <span>📥</span> 엑셀(CSV) 다운로드
             </button>
           </div>
         </div>
@@ -122,10 +129,18 @@
           </div>
         </div>
 
+        <!-- v2.0 예배별 출석 비교 막대 그래프 -->
+        <div class="service-comparison-box">
+          <h4>📊 예배별(1부, 2부, 오후 등) 출석 비교 그래프</h4>
+          <div id="service-chart-container">
+            <!-- admin.js에 의해 동적 렌더링 -->
+          </div>
+        </div>
+
         <!-- 교구별 출석 세부 집계 -->
-        <div style="margin-top:20px;">
+        <div>
           <h4 style="font-family:var(--font-serif); font-size:1.1rem; margin-bottom:10px; color:var(--primary-navy);">교구 및 구역별 출석 현황</h4>
-          <div class="member-list-view" style="max-width:600px;">
+          <div class="member-list-view" style="max-width:680px;">
             <table class="member-table">
               <thead>
                 <tr>
@@ -133,22 +148,27 @@
                   <th style="text-align:right;">출석 인원</th>
                 </tr>
               </thead>
-              <tbody id="parish-stats-tbody">
-                <!-- 동적 렌더링 -->
-              </tbody>
+              <tbody id="parish-stats-tbody"></tbody>
             </table>
           </div>
         </div>
       </section>
     </div>
 
-    <!-- 탭 3: 성도 교적 관리 (CRUD) -->
+    <!-- 탭 3: 성도 교적 관리 (CRUD & 엑셀 일괄 업로드) -->
     <div class="admin-tab-content" id="tab-content-members" style="display:none;">
       <section class="admin-section-card">
         <div class="section-header">
-          <h3>한영교회 성도 교적부 (총 250명)</h3>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <input type="text" id="admin-member-search" class="styled-select" placeholder="이름 또는 교구 검색" style="width:200px;" />
+          <h3>한영교회 성도 교적부 관리</h3>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <input type="text" id="admin-member-search" class="styled-select" placeholder="이름 또는 교구 검색" style="width:180px;" />
+            <button class="btn btn-outline" onclick="downloadMemberTemplate()" title="일괄 등록용 엑셀 표준 템플릿 받기">
+              <span>📄</span> 양식 받기
+            </button>
+            <label class="btn btn-gold" style="cursor:pointer; margin:0;" title="엑셀 파일로 250명 성도 일괄 등록/수정">
+              <span>📂</span> 엑셀 일괄 업로드
+              <input type="file" id="batch-file-input" accept=".xlsx, .xls, .csv" style="display:none;" onchange="handleBatchFileSelect(event)" />
+            </label>
             <button class="btn btn-primary" onclick="openAddMemberModal()">
               <span>➕</span> 새 성도 등록
             </button>
@@ -167,9 +187,34 @@
                 <th style="width:120px; text-align:right;">관리</th>
               </tr>
             </thead>
-            <tbody id="admin-members-tbody">
-              <!-- admin.js에 의해 동적 렌더링 -->
-            </tbody>
+            <tbody id="admin-members-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- 탭 4: 새가족 / 방문자 관리 (v2.0) -->
+    <div class="admin-tab-content" id="tab-content-newcomers" style="display:none;">
+      <section class="admin-section-card">
+        <div class="section-header">
+          <h3>🌱 한영교회 새가족 & 방문자 등록 현황</h3>
+          <button class="btn btn-primary" onclick="openNewcomerModal()">
+            <span>➕</span> 새가족 신규 등록
+          </button>
+        </div>
+        <div class="member-list-view">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">No</th>
+                <th>성명</th>
+                <th>등록일자</th>
+                <th>인도자 (소개자)</th>
+                <th>배정 교구</th>
+                <th>방문 사유 / 교적 메모</th>
+              </tr>
+            </thead>
+            <tbody id="newcomers-table-body"></tbody>
           </table>
         </div>
       </section>
@@ -177,7 +222,7 @@
 
   </main>
 
-  <!-- 성도 등록/수정 모달 -->
+  <!-- 1. 성도 단건 등록/수정 모달 -->
   <div id="member-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
@@ -237,12 +282,117 @@
     </div>
   </div>
 
+  <!-- 2. 엑셀 일괄 업로드 미리보기 모달 (v2.0) -->
+  <div id="batch-upload-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:720px;">
+      <div class="modal-header">
+        <h4>📂 엑셀(.xlsx/.csv) 성도 일괄 업로드 확인</h4>
+        <button onclick="closeBatchModal()" style="border:none; background:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+      <div>
+        <p id="batch-preview-count" style="font-weight:700; color:var(--primary-navy); margin-bottom:12px;"></p>
+        <div class="member-list-view" style="max-height:320px; overflow-y:auto;">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>성명 (초성)</th>
+                <th>직분</th>
+                <th>교구</th>
+                <th>연락처</th>
+              </tr>
+            </thead>
+            <tbody id="batch-preview-tbody"></tbody>
+          </table>
+        </div>
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-top:10px;">
+          * 확인 후 [일괄 등록 실행]을 누르면 한글 초성이 자동 생성되어 데이터베이스에 일괄 저장됩니다.
+        </p>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+        <button class="btn btn-outline" onclick="closeBatchModal()">취소</button>
+        <button class="btn btn-primary" id="batch-submit-btn" onclick="submitBatchMembers()">일괄 등록 실행</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 주일 출석 보고서 인쇄 모달 (v2.0) -->
+  <div id="print-report-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:860px; padding:20px;">
+      <div class="modal-header">
+        <h4>🖨️ 주일 출석 현황 보고서 (A4 규격 / PDF)</h4>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn btn-primary" onclick="executeBrowserPrint()">
+            <span>🖨️</span> 인쇄 / PDF 저장
+          </button>
+          <button onclick="closePrintReportModal()" style="border:none; background:none; font-size:1.4rem; cursor:pointer; margin-left:6px;">&times;</button>
+        </div>
+      </div>
+      <div id="print-modal-content">
+        <!-- printReport.js에 의해 채워짐 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 새가족 등록 모달 (v2.0) -->
+  <div id="newcomer-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4>🌱 새가족 / 방문자 등록</h4>
+        <button onclick="closeNewcomerModal()" style="border:none; background:none; font-size:1.2rem; cursor:pointer;">&times;</button>
+      </div>
+      <form onsubmit="handleSaveNewcomer(event)">
+        <div class="form-group">
+          <label class="form-label" for="newcomer-form-name">새가족 성함 *</label>
+          <input type="text" id="newcomer-form-name" class="form-control" required placeholder="예: 박은혜" />
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="newcomer-form-phone">연락처</label>
+            <input type="tel" id="newcomer-form-phone" class="form-control" placeholder="010-0000-0000" />
+          </div>
+          <div>
+            <label class="form-label" for="newcomer-form-guide">인도자 (소개자)</label>
+            <input type="text" id="newcomer-form-guide" class="form-control" placeholder="예: 이바울 권사" />
+          </div>
+        </div>
+
+        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label class="form-label" for="newcomer-form-parish">배정 희망 교구</label>
+            <input type="text" id="newcomer-form-parish" class="form-control" value="새가족부" />
+          </div>
+          <div>
+            <label class="form-label" for="newcomer-form-reason">방문 계기</label>
+            <input type="text" id="newcomer-form-reason" class="form-control" placeholder="예: 지인 전도, 이사 등" />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.9rem; cursor:pointer;">
+            <input type="checkbox" id="newcomer-form-autocheck" checked />
+            <span style="font-weight:600; color:var(--sage-green);">등록과 동시에 오늘 주일예배 출석 체크</span>
+          </label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn btn-outline" onclick="closeNewcomerModal()">취소</button>
+          <button type="submit" class="btn btn-primary" style="background:var(--sage-green); border-color:var(--sage-green-dark);">등록 완료</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- 스크립트 -->
+  <!-- 스크립트 모듈 -->
   <script src="js/supabaseClient.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/exportExcel.js"></script>
+  <script src="js/batchExcel.js"></script>
+  <script src="js/newcomers.js"></script>
+  <script src="js/printReport.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

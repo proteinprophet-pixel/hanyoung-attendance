@@ -1,5 +1,5 @@
 /* ==========================================================================
-   한영교회 스마트 안내 & 출석 관리 시스템 (Anti-AI Warm Paper Crafting)
+   한영교회 스마트 안내 & 출석 관리 시스템 (Anti-AI Warm Paper Crafting v2.0)
    Color Palette:
      - Canvas Background: #FBF9F5 (Warm Cream Canvas)
      - Primary: #1B2A4A (Liturgical Deep Navy)
@@ -77,7 +77,6 @@ body {
   flex-direction: column;
 }
 
-/* 주보 한지 질감 배경 효과 (Subtle Paper Texture) */
 body::before {
   content: "";
   position: fixed;
@@ -191,6 +190,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* ==========================================================================
@@ -416,6 +416,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* ==========================================================================
@@ -612,7 +613,6 @@ body::before {
   position: relative;
 }
 
-/* 카드 뷰 그리드 */
 .member-grid-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -697,6 +697,7 @@ body::before {
   align-items: baseline;
   gap: 6px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 
 .member-name {
@@ -730,7 +731,6 @@ body::before {
   font-family: monospace;
 }
 
-/* 카드 하단 액션 버튼 */
 .card-bottom-action {
   display: flex;
   align-items: center;
@@ -773,7 +773,6 @@ body::before {
   background: #2E5142;
 }
 
-/* 리스트 뷰 테이블 */
 .member-list-view {
   width: 100%;
   background: var(--bg-surface);
@@ -814,12 +813,6 @@ body::before {
   background: #F4F8F6;
 }
 
-.table-member-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .table-photo {
   width: 36px;
   height: 36px;
@@ -828,7 +821,6 @@ body::before {
   border: 1px solid var(--border-ink);
 }
 
-/* 빈 목록 & 로딩 상태 */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -856,7 +848,7 @@ body::before {
 }
 
 /* ==========================================================================
-   셀프 키오스크 모드 (Kiosk Mode Fullscreen)
+   v2.0 개선된 셀프 키오스크 모드 (Kiosk Mode Fullscreen)
    ========================================================================== */
 .kiosk-overlay {
   position: fixed;
@@ -879,33 +871,82 @@ body::before {
   justify-content: space-between;
   border-bottom: 2px solid var(--primary-navy);
   padding-bottom: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .kiosk-title-block h2 {
   font-family: var(--font-serif);
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 800;
   color: var(--primary-navy);
 }
 
 .kiosk-title-block p {
   color: var(--gold-dark);
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 600;
   margin-top: 4px;
 }
 
+/* 키오스크 대형 자음 키패드 */
+.kiosk-keypad-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 860px;
+  margin: 0 auto 16px;
+  padding: 10px;
+  background: #FFFFFF;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.kiosk-key-btn {
+  min-width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-strong);
+  background: var(--bg-subtle);
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--primary-navy);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.kiosk-key-btn:active {
+  transform: scale(0.92);
+  background: var(--primary-navy);
+  color: #FFFFFF;
+}
+
+.kiosk-key-btn.clear-key {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  padding: 0 14px;
+  background: var(--amber-light);
+  color: var(--amber-pending);
+  border-color: var(--amber-pending);
+}
+
 .kiosk-search-large {
   max-width: 680px;
-  margin: 0 auto 20px;
+  margin: 0 auto 16px;
   width: 100%;
 }
 
 .kiosk-input {
   width: 100%;
-  padding: 16px 20px;
-  font-size: 1.4rem;
+  padding: 14px 20px;
+  font-size: 1.5rem;
   font-family: inherit;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -914,75 +955,123 @@ body::before {
   color: var(--primary-navy);
   outline: none;
   box-shadow: var(--shadow-card);
+  font-weight: 700;
 }
 
 .kiosk-input:focus {
   border-color: var(--primary-navy);
-  box-shadow: 0 0 0 4px rgba(27, 42, 74, 0.1);
+  box-shadow: 0 0 0 4px rgba(27, 42, 74, 0.12);
 }
 
 .kiosk-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+  padding-bottom: 40px;
 }
 
-.kiosk-card {
+.kiosk-card-v2 {
   background: #FFFFFF;
   border: 2px solid var(--border-ink);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 14px;
   cursor: pointer;
   transition: all var(--transition-fast);
   box-shadow: var(--shadow-card);
+  user-select: none;
 }
 
-.kiosk-card:active {
-  transform: scale(0.97);
+.kiosk-card-v2:active {
+  transform: scale(0.96);
 }
 
-.kiosk-card.attended {
+.kiosk-card-v2.attended {
   border-color: var(--sage-green);
   background: #F2F8F5;
 }
 
-.kiosk-photo {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
+.kiosk-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.kiosk-photo-v2 {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
   object-fit: cover;
   border: 2px solid var(--gold-accent);
 }
 
-.kiosk-name {
+.kiosk-photo-fallback-v2 {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 2px solid var(--gold-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-serif);
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--gold-dark);
+}
+
+.kiosk-name-v2 {
+  font-family: var(--font-serif);
+  font-size: 1.4rem;
+  font-weight: 800;
   color: var(--primary-navy);
 }
 
-.kiosk-badge {
+.kiosk-sub-v2 {
+  font-size: 0.95rem;
+  color: var(--text-soft);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.kiosk-badge-v2 {
   font-size: 0.85rem;
   padding: 4px 10px;
   border-radius: var(--radius-full);
   background: var(--gold-light);
   color: var(--gold-dark);
   font-weight: 700;
+  align-self: flex-start;
+}
+
+.kiosk-action-banner {
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--primary-navy);
+  border: 1px solid var(--border-strong);
+}
+
+.kiosk-action-banner.attended {
+  background: var(--sage-green);
+  color: #FFFFFF;
+  border-color: var(--sage-green-dark);
 }
 
 /* 키오스크 축복 팝업 (Blessing Modal) */
 .blessing-modal {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(27, 42, 74, 0.6);
+  background: rgba(27, 42, 74, 0.65);
   backdrop-filter: blur(4px);
   z-index: 2000;
   display: none;
@@ -997,10 +1086,10 @@ body::before {
 
 .blessing-box {
   background: #FFFFFF;
-  border: 2px solid var(--gold-accent);
+  border: 3px solid var(--gold-accent);
   border-radius: var(--radius-lg);
-  padding: 36px 32px;
-  max-width: 480px;
+  padding: 40px 32px;
+  max-width: 500px;
   width: 100%;
   text-align: center;
   box-shadow: var(--shadow-elevated);
@@ -1008,39 +1097,39 @@ body::before {
 }
 
 @keyframes popIn {
-  from { transform: scale(0.8); opacity: 0; }
+  from { transform: scale(0.85); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 
 .blessing-icon {
-  font-size: 3.5rem;
-  margin-bottom: 16px;
-  color: var(--sage-green);
+  font-size: 3.8rem;
+  margin-bottom: 14px;
 }
 
 .blessing-title {
   font-family: var(--font-serif);
-  font-size: 1.55rem;
+  font-size: 1.7rem;
   font-weight: 800;
   color: var(--primary-navy);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .blessing-desc {
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--text-soft);
   margin-bottom: 24px;
   line-height: 1.6;
 }
 
 /* ==========================================================================
-   관리자 대시보드 (Admin Dashboard)
+   관리자 대시보드 & 통계 차트 (Admin Dashboard & Charts)
    ========================================================================== */
 .admin-tabs-nav {
   display: flex;
   gap: 8px;
   border-bottom: 1px solid var(--border-ink);
   margin-bottom: 20px;
+  overflow-x: auto;
 }
 
 .admin-tab-btn {
@@ -1054,6 +1143,7 @@ body::before {
   border-bottom: 2px solid transparent;
   transition: all var(--transition-fast);
   font-family: inherit;
+  white-space: nowrap;
 }
 
 .admin-tab-btn:hover {
@@ -1081,12 +1171,57 @@ body::before {
   margin-bottom: 20px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-ink);
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .section-header h3 {
   font-family: var(--font-serif);
   font-size: 1.25rem;
   color: var(--primary-navy);
+}
+
+/* 예배별 출석 비교 막대 그래프 (v2.0) */
+.service-comparison-box {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-ink);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.service-comparison-box h4 {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  color: var(--primary-navy);
+  margin-bottom: 16px;
+}
+
+.service-bar-row {
+  margin-bottom: 14px;
+}
+
+.service-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  margin-bottom: 6px;
+  color: var(--text-main);
+}
+
+.service-bar-track {
+  width: 100%;
+  height: 14px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--border-ink);
+}
+
+.service-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 승인 대기 사용자 카드 그리드 */
@@ -1170,7 +1305,114 @@ body::before {
   color: var(--sage-green);
 }
 
-/* 토스트 알림 (Toast Notifications) */
+/* ==========================================================================
+   주일 출석 보고서 (A4 규격 / PDF 인쇄 양식)
+   ========================================================================== */
+.print-a4-page {
+  background: #FFFFFF;
+  padding: 32px 36px;
+  color: #111111;
+  font-family: var(--font-serif);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #222222;
+}
+
+.report-title-area h2 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #1B2A4A;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.report-meta {
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  color: #555555;
+  display: flex;
+  gap: 16px;
+}
+
+/* 결재란 표 */
+.approval-table {
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+}
+
+.approval-table th, .approval-table td {
+  border: 1px solid #333333;
+  padding: 4px 8px;
+}
+
+.approval-side {
+  width: 22px;
+  background: #F5F5F5;
+  font-weight: 700;
+}
+
+.approval-stamp-row td {
+  height: 52px;
+  width: 60px;
+}
+
+.report-section {
+  margin-bottom: 24px;
+}
+
+.report-section-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1B2A4A;
+  margin-bottom: 8px;
+  padding-left: 6px;
+  border-left: 3px solid #C5A880;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.report-table th, .report-table td {
+  border: 1px solid #D5D5D5;
+  padding: 8px 10px;
+}
+
+.report-table th {
+  background: #F7F5F0;
+  font-weight: 700;
+  color: #222222;
+  text-align: center;
+}
+
+.report-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px dashed #AAAAAA;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: #666666;
+}
+
+/* ==========================================================================
+   토스트 알림 및 모달
+   ========================================================================== */
 .toast-container {
   position: fixed;
   bottom: 24px;
@@ -1211,17 +1453,17 @@ body::before {
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* 모달 공통 */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(27, 42, 74, 0.5);
+  background: rgba(27, 42, 74, 0.55);
   backdrop-filter: blur(2px);
   z-index: 1500;
   display: none;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .modal-overlay.active {
@@ -1233,10 +1475,12 @@ body::before {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   padding: 24px;
-  max-width: 520px;
+  max-width: 580px;
   width: 100%;
   box-shadow: var(--shadow-elevated);
   position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-header {
@@ -1250,7 +1494,7 @@ body::before {
 
 .modal-header h4 {
   font-family: var(--font-serif);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   color: var(--primary-navy);
 }
 
@@ -1283,8 +1527,65 @@ body::before {
 }
 
 /* ==========================================================================
-   미디어 쿼리 (Responsive for Tablet & Mobile)
+   A4 인쇄 전용 CSS (@media print)
    ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-size: 10pt;
+  }
+
+  body::before,
+  .site-header,
+  .admin-tabs-nav,
+  .header-controls,
+  .stats-quick-actions,
+  .btn,
+  .toast-container,
+  .modal-overlay:not(#print-report-modal),
+  #admin-nav-link,
+  #auth-action-area {
+    display: none !important;
+  }
+
+  .modal-overlay#print-report-modal {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    max-height: none !important;
+  }
+
+  .modal-header,
+  .modal-footer {
+    display: none !important;
+  }
+
+  .print-a4-page {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .report-table th {
+    background: #EEEEEE !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 @media (max-width: 768px) {
   .header-inner {
     padding: 10px 14px;

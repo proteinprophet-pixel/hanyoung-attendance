@@ -1,6 +1,6 @@
 /**
- * 한영교회 스마트 안내 & 출석 관리 시스템
- * Attendance Management, Chosung Search, View Switching & Kiosk
+ * 한영교회 스마트 안내 & 출석 관리 시스템 v2.0
+ * Attendance Management, Chosung Search, View Switching & Enhanced Kiosk
  */
 
 const CHOSUNG_ARRAY = [
@@ -17,6 +17,7 @@ let currentSearchTerm = '';
 let currentViewMode = 'card'; // 'card' or 'list'
 let selectedServiceDate = new Date().toISOString().split('T')[0];
 let selectedServiceType = '주일1부';
+let kioskInactivityTimer = null;
 
 // 한글 초성 분해 유틸리티
 function extractChosung(str) {
@@ -129,6 +130,7 @@ function populateParishFilter() {
 
   const parishes = Array.from(new Set(allMembers.map(m => m.parish).filter(Boolean))).sort();
   select.innerHTML = `<option value="ALL">전체 교구 (${allMembers.length}명)</option>`;
+  select.innerHTML += `<option value="NEWCOMERS">🌱 새가족 / 방문자만</option>`;
   parishes.forEach(p => {
     const count = allMembers.filter(m => m.parish === p).length;
     select.innerHTML += `<option value="${p}">${p} (${count}명)</option>`;
@@ -172,8 +174,10 @@ function applyFiltersAndRender() {
       if (initial !== currentChosung) return false;
     }
 
-    // 2. 교구 필터
-    if (currentParish !== 'ALL' && m.parish !== currentParish) {
+    // 2. 교구 / 새가족 필터
+    if (currentParish === 'NEWCOMERS') {
+      if (!m.is_newcomer) return false;
+    } else if (currentParish !== 'ALL' && m.parish !== currentParish) {
       return false;
     }
 
@@ -259,6 +263,7 @@ function renderMemberCardHTML(m) {
           <div class="member-name-row">
             <span class="member-name">${m.name}</span>
             <span class="member-position-badge">${m.position || '성도'}</span>
+            ${m.is_newcomer ? '<span class="role-tag usher" style="font-size:0.65rem; padding:1px 5px;">새가족</span>' : ''}
           </div>
           <div class="member-meta-row">
             <span>${m.parish}</span>
@@ -293,6 +298,7 @@ function renderMemberTableRowHTML(m) {
       <td>
         <strong style="font-family:var(--font-serif); font-size:1.05rem;">${m.name}</strong>
         <span class="member-position-badge" style="margin-left:6px;">${m.position || '성도'}</span>
+        ${m.is_newcomer ? '<span class="role-tag usher" style="margin-left:4px; font-size:0.65rem;">새가족</span>' : ''}
       </td>
       <td>${m.parish}</td>
       <td style="color:var(--text-muted); font-family:monospace;">${m.phone_last4 || '-'}</td>
@@ -381,7 +387,6 @@ async function toggleAttendance(memberId) {
 }
 
 function updateSingleMemberUI(memberId, isAttended) {
-  // 카드 뷰 엘리먼트 갱신
   const card = document.getElementById(`member-card-${memberId}`);
   if (card) {
     if (isAttended) {
@@ -396,7 +401,6 @@ function updateSingleMemberUI(memberId, isAttended) {
     }
   }
 
-  // 리스트 뷰 엘리먼트 갱신
   const row = document.getElementById(`member-row-${memberId}`);
   if (row) {
     if (isAttended) {
@@ -433,17 +437,51 @@ function updateStatsSummary() {
 }
 
 /**
- * 키오스크 모드 (성도 자율 셀프 체크인)
+ * Web Audio API 기반 은은하고 성스러운 환영 차임 사운드
+ */
+function playWelcomeChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    // 두 개의 부드러운 사인파 화음 (E5 + B5)
+    const freqs = [659.25, 987.77];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.08 + 1.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(ctx.currentTime + idx * 0.08);
+      osc.stop(ctx.currentTime + idx * 0.08 + 1.25);
+    });
+  } catch (e) {
+    // 오디오 미지원 환경은 조용히 통과
+  }
+}
+
+/**
+ * v2.0 개선된 풀스크린 키오스크 모드
  */
 function openKioskMode() {
   const overlay = document.getElementById('kiosk-overlay');
   if (overlay) {
     overlay.classList.add('active');
+    renderKioskKeypad();
     renderKioskList('');
+    resetKioskTimer();
+
     const input = document.getElementById('kiosk-search-input');
     if (input) {
       input.value = '';
-      setTimeout(() => input.focus(), 150);
     }
   }
 }
@@ -452,9 +490,52 @@ function closeKioskMode() {
   const overlay = document.getElementById('kiosk-overlay');
   if (overlay) {
     overlay.classList.remove('active');
+    if (kioskInactivityTimer) clearTimeout(kioskInactivityTimer);
     applyFiltersAndRender();
     updateStatsSummary();
   }
+}
+
+function resetKioskTimer() {
+  if (kioskInactivityTimer) clearTimeout(kioskInactivityTimer);
+  // 30초 무반응 시 초기화
+  kioskInactivityTimer = setTimeout(() => {
+    const input = document.getElementById('kiosk-search-input');
+    if (input) input.value = '';
+    renderKioskList('');
+  }, 30000);
+}
+
+/**
+ * 키오스크 대형 터치 자음 키패드
+ */
+function renderKioskKeypad() {
+  const container = document.getElementById('kiosk-keypad-container');
+  if (!container) return;
+
+  const consonants = ['전체', 'ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ', '지우기'];
+
+  container.innerHTML = consonants.map(c => {
+    if (c === '지우기') {
+      return `<button class="kiosk-key-btn clear-key" onclick="handleKioskKey('${c}')">⌫ 지움</button>`;
+    }
+    return `<button class="kiosk-key-btn" onclick="handleKioskKey('${c}')">${c}</button>`;
+  }).join('');
+}
+
+function handleKioskKey(key) {
+  resetKioskTimer();
+  const input = document.getElementById('kiosk-search-input');
+  if (!input) return;
+
+  if (key === '전체') {
+    input.value = '';
+  } else if (key === '지우기') {
+    input.value = input.value.slice(0, -1);
+  } else {
+    input.value += key;
+  }
+  renderKioskList(input.value);
 }
 
 function renderKioskList(query) {
@@ -467,15 +548,16 @@ function renderKioskList(query) {
   const matched = allMembers.filter(m => {
     if (!term) return true;
     const nameMatch = m.name.toLowerCase().includes(term);
+    const phoneMatch = (m.phone_last4 || '').includes(term);
     const chosungMatch = (m.chosung || '').includes(term) || (m.chosung || '').includes(searchChosung);
-    return nameMatch || chosungMatch;
+    return nameMatch || phoneMatch || chosungMatch;
   });
 
   if (matched.length === 0) {
     container.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align:center; padding:40px; color:var(--text-muted);">
-        <p style="font-size:1.2rem; font-weight:700;">일치하는 성도님이 없습니다.</p>
-        <p style="margin-top:6px;">이름 1~2글자 또는 초성(예: 'ㄱㅇㅎ')을 입력해 보세요.</p>
+      <div style="grid-column: 1 / -1; text-align:center; padding:48px; color:var(--text-muted); background:#fff; border-radius:var(--radius-lg); border:2px dashed var(--border-ink);">
+        <p style="font-size:1.35rem; font-weight:700; color:var(--text-soft);">일치하는 성도님이 없습니다.</p>
+        <p style="margin-top:8px; font-size:1rem;">성함 1~2글자 또는 위 자음 키패드를 터치해 보세요.</p>
       </div>
     `;
     return;
@@ -485,17 +567,21 @@ function renderKioskList(query) {
     const isAttended = attendancesMap.has(m.id);
     const photoFallback = m.name.charAt(0);
     const photoTag = m.photo_url 
-      ? `<img src="${m.photo_url}" class="kiosk-photo" alt="${m.name}" onerror="this.outerHTML='<div class=\\'kiosk-photo\\' style=\\'display:flex;align-items:center;justify-content:center;background:#F5F1E9;font-weight:700;font-size:1.6rem;color:var(--gold-dark);\\'>${photoFallback}</div>'" />`
-      : `<div class="kiosk-photo" style="display:flex;align-items:center;justify-content:center;background:#F5F1E9;font-weight:700;font-size:1.6rem;color:var(--gold-dark);">${photoFallback}</div>`;
+      ? `<img src="${m.photo_url}" class="kiosk-photo-v2" alt="${m.name}" onerror="this.outerHTML='<div class=\\'kiosk-photo-fallback-v2\\'>${photoFallback}</div>'" />`
+      : `<div class="kiosk-photo-fallback-v2">${photoFallback}</div>`;
 
     return `
-      <div class="kiosk-card ${isAttended ? 'attended' : ''}" onclick="kioskSelfCheckin('${m.id}')">
-        ${photoTag}
-        <div class="kiosk-name">${m.name}</div>
-        <div style="font-size:0.9rem; color:var(--text-soft); font-weight:600;">${m.parish}</div>
-        <span class="kiosk-badge">${m.position || '성도'}</span>
-        <div style="margin-top:4px; font-weight:700; color:${isAttended ? 'var(--sage-green)' : 'var(--text-muted)'}; font-size:0.95rem;">
-          ${isAttended ? '✓ 출석완료' : '👉 터치하여 출석'}
+      <div class="kiosk-card-v2 ${isAttended ? 'attended' : ''}" onclick="kioskSelfCheckin('${m.id}')">
+        <div class="kiosk-card-header">
+          ${photoTag}
+          <div style="text-align:left; flex:1;">
+            <div class="kiosk-name-v2">${m.name}</div>
+            <div class="kiosk-sub-v2">${m.parish} ${m.phone_last4 ? `(${m.phone_last4})` : ''}</div>
+          </div>
+          <span class="kiosk-badge-v2">${m.position || '성도'}</span>
+        </div>
+        <div class="kiosk-action-banner ${isAttended ? 'attended' : ''}">
+          ${isAttended ? '✓ 출석 확인 완료' : '👉 여기를 터치하여 출석'}
         </div>
       </div>
     `;
@@ -503,6 +589,7 @@ function renderKioskList(query) {
 }
 
 async function kioskSelfCheckin(memberId) {
+  resetKioskTimer();
   const member = allMembers.find(m => m.id === memberId);
   if (!member) return;
 
@@ -510,6 +597,9 @@ async function kioskSelfCheckin(memberId) {
   if (!isAlreadyAttended) {
     await toggleAttendance(memberId);
   }
+
+  // 환영 사운드 재생
+  playWelcomeChime();
 
   // 따뜻한 축복 팝업 표시
   showBlessingModal(member.name, member.position || '성도');
@@ -528,11 +618,10 @@ function showBlessingModal(name, position) {
   }
 }
 
-// 이벤트 리스너 바인딩
+// 초기 이벤트 바인딩
 window.addEventListener('DOMContentLoaded', () => {
   loadAttendanceData();
 
-  // 검색창 입력 이벤트
   const searchInput = document.getElementById('search-input');
   const searchClearBtn = document.getElementById('search-clear-btn');
   if (searchInput) {
@@ -555,7 +644,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 교구 필터 변경
   const parishSelect = document.getElementById('parish-filter');
   if (parishSelect) {
     parishSelect.addEventListener('change', (e) => {
@@ -564,7 +652,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 출석 상태 필터 변경
   const statusSelect = document.getElementById('status-filter');
   if (statusSelect) {
     statusSelect.addEventListener('change', (e) => {
@@ -573,7 +660,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 예배 구분 변경
   const serviceSelect = document.getElementById('service-type-select');
   if (serviceSelect) {
     serviceSelect.addEventListener('change', async (e) => {
@@ -584,7 +670,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 뷰 전환 버튼
   const cardViewBtn = document.getElementById('view-card-btn');
   const listViewBtn = document.getElementById('view-list-btn');
   if (cardViewBtn && listViewBtn) {
@@ -602,10 +687,10 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 키오스크 검색 입력
   const kioskInput = document.getElementById('kiosk-search-input');
   if (kioskInput) {
     kioskInput.addEventListener('input', (e) => {
+      resetKioskTimer();
       renderKioskList(e.target.value);
     });
   }
@@ -617,6 +702,9 @@ window.loadAttendanceData = loadAttendanceData;
 window.openKioskMode = openKioskMode;
 window.closeKioskMode = closeKioskMode;
 window.kioskSelfCheckin = kioskSelfCheckin;
+window.handleKioskKey = handleKioskKey;
+window.extractChosung = extractChosung;
+window.getInitialConsonant = getInitialConsonant;
 window.getAllMembers = () => allMembers;
 window.getAttendancesMap = () => attendancesMap;
 window.getSelectedServiceDate = () => selectedServiceDate;
